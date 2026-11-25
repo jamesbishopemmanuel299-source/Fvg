@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: bun install --frozen-lockfile && bun run build
+    buildCommand: bun install && bun run build
     startCommand: bunx tsx server.ts
     healthCheckPath: /api/health
     envVars:
