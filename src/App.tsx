@@ -24,6 +24,7 @@ import {
   startBot,
   stopBot,
   updateBotConfig,
+  reconnectDeriv,
 } from './services/api';
 import { derivBrowserWs } from './services/derivWs';
 
@@ -40,6 +41,7 @@ import type {
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isConnectingAccount, setIsConnectingAccount] = useState(false);
 
   // Status & Account
   const [status, setStatus] = useState<DerivConnectionStatus>({
@@ -165,6 +167,21 @@ export default function App() {
     };
   }, [refreshStatus, refreshPositions, refreshHistory, refreshBotState]);
 
+  const handleConnectAccount = async () => {
+    if (isConnectingAccount) return;
+    setIsConnectingAccount(true);
+    try {
+      const updated = await reconnectDeriv();
+      setStatus(updated);
+      await Promise.all([refreshPositions(), refreshHistory()]);
+    } catch (error: any) {
+      alert(error.message || 'Could not connect to Deriv. Check the Render environment settings.');
+      await refreshStatus();
+    } finally {
+      setIsConnectingAccount(false);
+    }
+  };
+
   // 2. Load Historical Ticks when Symbol Changes
   useEffect(() => {
     let isCancelled = false;
@@ -284,6 +301,8 @@ export default function App() {
               ticks={ticks}
               onNavigate={setCurrentTab}
               onSelectSymbol={setCurrentSymbol}
+              onConnectAccount={handleConnectAccount}
+              isConnectingAccount={isConnectingAccount}
             />
           )}
 
