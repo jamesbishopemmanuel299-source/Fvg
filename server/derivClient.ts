@@ -45,8 +45,8 @@ export class DerivServerClient {
     const configuredAppId = (process.env.DERIV_APP_ID || '').trim();
     // Deriv's app_id query parameter must be numeric. A client identifier or
     // OAuth client ID is not a valid replacement; fall back to public app 1089.
-    this.appId = configuredAppId && /^\\d+$/.test(configuredAppId) ? configuredAppId : '1089';
-    this.appIdConfigError = configuredAppId && !/^\\d+$/.test(configuredAppId)
+    this.appId = configuredAppId && /^\d+$/.test(configuredAppId) ? configuredAppId : '1089';
+    this.appIdConfigError = configuredAppId && !/^\d+$/.test(configuredAppId)
       ? 'DERIV_APP_ID must be a numeric Deriv application ID. Using public app ID 1089 until corrected.'
       : null;
     this.envToken = (process.env.DERIV_ACCESS_TOKEN || '').trim();
@@ -65,7 +65,7 @@ export class DerivServerClient {
       derivAccessTokenConfigured: Boolean((process.env.DERIV_ACCESS_TOKEN || '').trim()),
       derivDemoTokenConfigured: Boolean((process.env.DERIV_DEMO_ACCESS_TOKEN || '').trim()),
       derivAppId: this.appId,
-      derivAppIdValid: /^\\d+$/.test(this.appId),
+      derivAppIdValid: /^\d+$/.test(this.appId),
       derivAppIdWarning: this.appIdConfigError,
       // DERIV_CLIENT_ID is optional metadata; Deriv WebSocket auth uses app_id + access token.
       derivClientId: (process.env.DERIV_CLIENT_ID || '').trim() || null,
