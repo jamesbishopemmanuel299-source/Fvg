@@ -51,6 +51,9 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   const [durationUnit, setDurationUnit] = useState<'t' | 's' | 'm' | 'h'>('m');
   const [requireConfirmation, setRequireConfirmation] = useState<boolean>(true);
   const [pendingConfirm, setPendingConfirm] = useState<{ type: ContractType } | null>(null);
+  const [entryPrice, setEntryPrice] = useState<string>('');
+  const [pendingEntry, setPendingEntry] = useState<{ type: ContractType; target: number } | null>(null);
+  const livePrice = ticks.length ? ticks[ticks.length - 1].quote : null;
 
   // Proposal state
   const [callProposal, setCallProposal] = useState<ContractProposal | null>(null);
@@ -118,6 +121,27 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   }, [currentSymbol, stake, duration, durationUnit, currency]);
 
   const handleOrderClick = (type: ContractType) => {
+    const target = entryPrice.trim() === '' ? null : Number(entryPrice);
+    if (target !== null) {
+      if (!Number.isFinite(target) || target <= 0) {
+        setExecutionResult({ success: false, error: 'Enter a valid positive entry price, or clear the field for a market order.' });
+        return;
+      }
+      if (pendingEntry) {
+        setExecutionResult({ success: false, error: 'A price-triggered entry is already waiting. Cancel it before creating another.' });
+        return;
+      }
+      const price = livePrice;
+      const reached = price !== null && (type === 'CALL' ? price >= target : price <= target);
+      if (reached) {
+        if (requireConfirmation) setPendingConfirm({ type });
+        else executeOrder(type);
+      } else {
+        setPendingEntry({ type, target });
+        setExecutionResult(null);
+      }
+      return;
+    }
     if (requireConfirmation) {
       setPendingConfirm({ type });
     } else {
@@ -155,6 +179,22 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       setIsExecuting(false);
     }
   };
+
+  useEffect(() => {
+    if (!pendingEntry || livePrice === null || isExecuting) return;
+    const reached = pendingEntry.type === 'CALL'
+      ? livePrice >= pendingEntry.target
+      : livePrice <= pendingEntry.target;
+    if (!reached) return;
+    const triggered = pendingEntry;
+    setPendingEntry(null);
+    setExecutionResult({
+      success: false,
+      error: `Entry price reached at ${livePrice}. Confirm the order below to execute.`,
+    });
+    if (requireConfirmation) setPendingConfirm({ type: triggered.type });
+    else executeOrder(triggered.type);
+  }, [ticks, pendingEntry, livePrice, isExecuting, requireConfirmation]);
 
   const stakePresets = [0.35, 0.5, 1.0, 5.0, 10.0, 50.0];
 
@@ -252,6 +292,39 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Custom Entry Price */}
+          <div className="rounded-lg border border-cyan-900/60 bg-[#0d1322] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300">Custom Entry Price</label>
+              <span className="text-[10px] text-slate-500">Optional · leave blank for market</span>
+            </div>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={entryPrice}
+              onChange={(e) => setEntryPrice(e.target.value)}
+              placeholder={livePrice === null ? "Enter target price" : `Live: ${livePrice}`}
+              disabled={!!pendingEntry}
+              aria-label="Custom entry price"
+              className="w-full bg-[#121829] border border-slate-700/80 rounded-lg px-3 py-2.5 text-white font-mono font-bold text-base focus:outline-none focus:border-cyan-500 disabled:opacity-60"
+            />
+            <p className="text-[10px] text-slate-500">CALL waits until price is at or above your target. PUT waits until price is at or below it. Execution is a market order when the trigger is observed; fill price may differ.</p>
+            {pendingEntry && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-700/50 bg-amber-950/30 p-2">
+                <div className="text-[11px] text-amber-300">
+                  <strong>Waiting for {pendingEntry.type}</strong>
+                  <div>Target {pendingEntry.target} · Live {livePrice ?? 'Waiting for tick'}</div>
+                </div>
+                <button type="button" onClick={() => setPendingEntry(null)} className="shrink-0 rounded bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white">Cancel</button>
+              </div>
+            )}
+            {!pendingEntry && entryPrice.trim() !== '' && (
+              <button type="button" onClick={() => setEntryPrice('')} className="text-[10px] text-cyan-400 hover:text-cyan-300">Clear entry price</button>
+            )}
           </div>
 
           {/* Duration Selector */}
