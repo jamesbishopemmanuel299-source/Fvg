@@ -18,7 +18,7 @@ export interface DerivConnectionStatus {
   account: DerivAccount | null;
   clientId: string;
   hasEnvToken: boolean;
-  activeTokenSource: 'env' | 'custom' | 'none';
+  activeTokenSource: 'env' | 'custom' | 'none' | 'render-primary' | 'render-demo-fallback';
   error: string | null;
   pingMs?: number;
   mode: 'demo' | 'real';
