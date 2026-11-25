@@ -49,6 +49,17 @@ export class DerivServerClient {
     return this.appId;
   }
 
+  public getRuntimeConfigStatus() {
+    return {
+      derivAppIdConfigured: Boolean((process.env.DERIV_APP_ID || '').trim()),
+      derivClientIdConfigured: Boolean((process.env.DERIV_CLIENT_ID || '').trim()),
+      derivAccessTokenConfigured: Boolean((process.env.DERIV_ACCESS_TOKEN || '').trim()),
+      derivAppId: this.appId,
+      // DERIV_CLIENT_ID is optional metadata; Deriv WebSocket auth uses app_id + access token.
+      derivClientId: (process.env.DERIV_CLIENT_ID || '').trim() || null,
+    };
+  }
+
   private refreshEnvironmentToken(): string {
     // Read the current process environment each time so reconnect uses the
     // latest value configured in Render after a restart/redeploy.
