@@ -57,7 +57,7 @@ async function startServer() {
   // Never accept access tokens from browser requests.
   app.post('/api/deriv/reconnect', async (_req, res) => {
     try {
-      const status = await derivClient.reauthorize();
+      const status = await derivClient.reconnectFromEnvironment();
       if (!status.hasEnvToken) {
         return res.status(400).json({
           ...status,
