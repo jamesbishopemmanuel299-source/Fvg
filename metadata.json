@@ -1,0 +1,6 @@
+{
+  "name": "BONAGO AI — Deriv Trading Terminal & Bot",
+  "description": "Automated and manual Deriv trading terminal with AI-powered market analysis, live market feeds, risk management, and real-time contract execution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
