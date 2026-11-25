@@ -132,6 +132,15 @@ export class BotEngine {
     this.isEvaluating = true;
 
     try {
+      // Rebuild daily realized P/L from Deriv's closed-contract history on every
+      // cycle so stop-loss/take-profit controls do not remain stuck at zero.
+      const history = await derivClient.getTradeHistory();
+      const dayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+      const todaysClosed = history.filter((trade) => Number(trade.date_expiry || 0) >= dayStart);
+      const realizedToday = todaysClosed.reduce((sum, trade) => sum + (Number(trade.profit) || 0), 0);
+      this.state.todayProfit = Math.max(0, realizedToday);
+      this.state.todayLoss = Math.max(0, -realizedToday);
+
       // 1. RISK CHECK: Daily Stop-Loss
       if (this.state.todayLoss >= this.state.config.maxDailyLoss) {
         this.stop(`Risk Stop: Maximum daily loss limit reached ($${this.state.todayLoss.toFixed(2)} >= $${this.state.config.maxDailyLoss.toFixed(2)})`);
