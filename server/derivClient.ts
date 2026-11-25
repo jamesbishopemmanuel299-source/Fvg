@@ -39,7 +39,7 @@ export class DerivServerClient {
   private activeSubscriptions = new Set<string>();
 
   constructor() {
-    this.appId = process.env.DERIV_CLIENT_ID || process.env.DERIV_APP_ID || '1089';
+    this.appId = process.env.DERIV_APP_ID || '1089';
     this.envToken = process.env.DERIV_ACCESS_TOKEN || '';
     this.activeSymbolsCache = this.getFallbackSymbols();
     this.connect();
@@ -571,80 +571,7 @@ export class DerivServerClient {
 
   public async buyContract(order: BuyOrderRequest): Promise<BuyOrderResponse> {
     if (!this.isAuthorized) {
-      return { success: false, error: 'Deriv account is not authorized. Trading is disabled until a real Deriv demo account is connected.' };
-      const proposal = await this.getProposal({
-        symbol: order.symbol,
-        contract_type: order.contract_type,
-        amount: order.amount,
-        duration: order.duration,
-        duration_unit: order.duration_unit,
-        currency: order.currency || 'USD',
-        basis: order.basis || 'stake',
-        barrier: order.barrier,
-      });
-
-      const contractId = Math.floor(10000000000 + Math.random() * 90000000000);
-      const buyPrice = order.amount;
-      const symInfo = this.activeSymbolsCache.find((s) => s.symbol === order.symbol);
-      const expirySec = this.durationToSeconds(order.duration, order.duration_unit);
-
-      const openContract: OpenContract = {
-        contract_id: contractId,
-        symbol: order.symbol,
-        display_name: symInfo?.display_name || order.symbol,
-        contract_type: order.contract_type,
-        buy_price: buyPrice,
-        entry_spot: proposal.spot,
-        current_spot: proposal.spot,
-        payout: proposal.payout,
-        profit: 0,
-        is_sold: false,
-        is_expired: false,
-        status: 'open',
-        date_purchase: Math.floor(Date.now() / 1000),
-        date_expiry: Math.floor(Date.now() / 1000) + expirySec,
-        barrier: order.barrier,
-        longcode: proposal.longcode,
-        currency: 'USD',
-        duration_display: `${order.duration}${order.duration_unit}`,
-      };
-
-      this.openPositionsCache.set(contractId, openContract);
-
-      // Settle demo contract after duration
-      const durationMs = expirySec * 1000;
-      setTimeout(() => {
-        const isWon = Math.random() > 0.45;
-        const profit = isWon ? proposal.net_profit : -buyPrice;
-        this.handleOpenContractUpdate({
-          contract_id: contractId,
-          underlying: order.symbol,
-          display_name: symInfo?.display_name || order.symbol,
-          contract_type: order.contract_type,
-          buy_price: buyPrice,
-          payout: isWon ? proposal.payout : 0,
-          entry_spot: proposal.spot,
-          current_spot: proposal.spot + (isWon ? 0.8 : -0.8),
-          exit_tick: proposal.spot + (isWon ? 0.8 : -0.8),
-          profit,
-          status: isWon ? 'won' : 'lost',
-          is_sold: 1,
-          is_expired: 1,
-          date_purchase: openContract.date_purchase,
-          date_expiry: Math.floor(Date.now() / 1000),
-          longcode: openContract.longcode,
-          currency: 'USD',
-        });
-      }, Math.min(durationMs, 10000));
-
-      return {
-        success: true,
-        contract_id: contractId,
-        buy_price: buyPrice,
-        payout: proposal.payout,
-        balance_after: 10000 - buyPrice,
-        longcode: proposal.longcode,
-      };
+      return { success: false, error: 'Deriv account is not authorized. Trading is disabled until a Deriv demo account is connected.' };
     }
 
     try {
