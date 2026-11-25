@@ -20,14 +20,28 @@ export const MarketSelectorModal: React.FC<MarketSelectorModalProps> = ({
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const categories = useMemo(() => [
-    { id: 'all', label: 'All Markets' },
-    { id: 'volatility', label: 'Volatility Indices' },
-    { id: 'crash_boom', label: 'Crash & Boom' },
-    { id: 'forex', label: 'Forex' },
-    { id: 'crypto', label: 'Crypto' },
-    { id: 'commodities', label: 'Commodities' },
-  ], []);
+  // Build market tabs from the live Deriv catalogue so new market groups
+  // appear automatically without requiring another frontend release.
+  const categories = useMemo(() => {
+    const fixed = [
+      { id: 'all', label: 'All Markets' },
+      { id: 'volatility', label: 'Volatility Indices' },
+      { id: 'crash_boom', label: 'Crash & Boom' },
+      { id: 'forex', label: 'Forex' },
+      { id: 'crypto', label: 'Crypto' },
+      { id: 'commodities', label: 'Commodities' },
+    ];
+    const knownMarkets = new Set(['synthetic_index', 'forex', 'cryptocurrency', 'commodities']);
+    const dynamic = Array.from(new Map(
+      symbols
+        .filter((item) => item.market && !knownMarkets.has(item.market))
+        .map((item) => [item.market, {
+          id: `market:${item.market}`,
+          label: item.market_display_name || item.market.replace(/_/g, ' '),
+        }])
+    ).values()).sort((a, b) => a.label.localeCompare(b.label));
+    return [...fixed, ...dynamic];
+  }, [symbols]);
 
   const filteredSymbols = useMemo(() => {
     return symbols.filter((s) => {
@@ -44,6 +58,8 @@ export const MarketSelectorModal: React.FC<MarketSelectorModalProps> = ({
         if (s.market !== 'cryptocurrency') return false;
       } else if (selectedCategory === 'commodities') {
         if (s.market !== 'commodities') return false;
+      } else if (selectedCategory.startsWith('market:')) {
+        if (s.market !== selectedCategory.slice('market:'.length)) return false;
       }
 
       // Search filter
