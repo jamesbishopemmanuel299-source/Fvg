@@ -463,7 +463,7 @@ export class DerivServerClient {
       authorized: this.isAuthorized,
       account: this.isAuthorized ? this.currentAccount : null,
       clientId: this.appId,
-      hasEnvToken: Boolean(this.refreshEnvironmentToken()),
+      hasEnvToken: this.getEnvironmentTokenCandidates().length > 0,
       activeTokenSource: this.customToken ? 'custom' : this.activeTokenSource !== 'none' ? this.activeTokenSource : this.envToken ? 'render-primary' : (process.env.DERIV_DEMO_ACCESS_TOKEN ? 'render-demo-fallback' : 'none'),
       error: this.lastError,
       pingMs: this.lastPingMs || undefined,
