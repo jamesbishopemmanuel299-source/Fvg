@@ -20,5 +20,9 @@ services:
         sync: false
       - key: DERIV_APP_ID
         value: "1089"
+      - key: DERIV_CLIENT_ID
+        sync: false
+      - key: GROQ_MODEL
+        value: "openai/gpt-oss-120b"
       - key: DERIV_ACCESS_TOKEN
         sync: false
