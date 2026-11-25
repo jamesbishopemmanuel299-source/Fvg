@@ -319,25 +319,15 @@ export class DerivServerClient {
   }
 
   public getStatus(): DerivConnectionStatus {
-    const token = this.getEffectiveToken();
-    const demoAccount: DerivAccount = this.currentAccount || {
-      loginid: 'VRTC9482103',
-      currency: 'USD',
-      balance: 10000.0,
-      is_virtual: true,
-      email: 'demo@bonago.deriv',
-      fullname: 'Demo Trader',
-    };
-
     return {
       connected: this.isConnected,
-      authorized: this.isAuthorized || !token,
-      account: this.isAuthorized ? this.currentAccount : demoAccount,
+      authorized: this.isAuthorized,
+      account: this.isAuthorized ? this.currentAccount : null,
       clientId: this.appId,
       hasEnvToken: Boolean(this.envToken),
       activeTokenSource: this.customToken ? 'custom' : this.envToken ? 'env' : 'none',
-      error: this.isAuthorized ? this.lastError : null,
-      pingMs: this.lastPingMs || 24,
+      error: this.lastError,
+      pingMs: this.lastPingMs || undefined,
       mode: this.currentAccount && !this.currentAccount.is_virtual ? 'real' : 'demo',
     };
   }
@@ -513,6 +503,9 @@ export class DerivServerClient {
     basis?: string;
     barrier?: string;
   }): Promise<ContractProposal> {
+    if (!this.isAuthorized) {
+      throw new Error('Deriv account is not authorized. Add DERIV_ACCESS_TOKEN to Render Environment and reconnect.');
+    }
     const validUnits = ['t', 's', 'm', 'h', 'd'];
     const unit = validUnits.includes(req.duration_unit) ? req.duration_unit : 'm';
     const currency = req.currency || this.currentAccount?.currency || 'USD';
@@ -578,7 +571,7 @@ export class DerivServerClient {
 
   public async buyContract(order: BuyOrderRequest): Promise<BuyOrderResponse> {
     if (!this.isAuthorized) {
-      // Demo mode order execution with real-time tracking and automated settlement
+      return { success: false, error: 'Deriv account is not authorized. Trading is disabled until a real Deriv demo account is connected.' };
       const proposal = await this.getProposal({
         symbol: order.symbol,
         contract_type: order.contract_type,
