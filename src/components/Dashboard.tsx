@@ -13,6 +13,8 @@ import {
   Shield,
   ArrowUpRight,
   Sparkles,
+  Link2,
+  RefreshCw,
 } from 'lucide-react';
 import { MarketChart } from './MarketChart';
 import type {
@@ -35,6 +37,8 @@ interface DashboardProps {
   ticks: MarketTick[];
   onNavigate: (tab: NavTab) => void;
   onSelectSymbol: (symbol: string) => void;
+  onConnectAccount: () => void;
+  isConnectingAccount: boolean;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -47,6 +51,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   ticks,
   onNavigate,
   onSelectSymbol,
+  onConnectAccount,
+  isConnectingAccount,
 }) => {
   const account = status.account;
   const activeSymbolObj = symbols.find((s) => s.symbol === currentSymbol);
@@ -119,6 +125,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <span className="text-[11px] text-slate-500 font-mono mt-0.5 block truncate">
             {account?.loginid || 'Waiting for Deriv authorization'}
           </span>
+          {!status.authorized && (
+            <button
+              onClick={onConnectAccount}
+              disabled={isConnectingAccount}
+              className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 disabled:cursor-not-allowed px-3 py-2 text-xs font-bold text-white transition-colors"
+            >
+              {isConnectingAccount ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+              {isConnectingAccount ? 'Connecting…' : 'Connect Deriv Account'}
+            </button>
+          )}
         </div>
 
         {/* 2. Today's P&L */}
