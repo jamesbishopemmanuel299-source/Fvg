@@ -45,11 +45,20 @@ async function startServer() {
     }
   });
 
-  // Configure or test Custom Token
-  app.post('/api/deriv/config', async (req, res) => {
+  // Re-authorize using the private DERIV_ACCESS_TOKEN configured on Render.
+  // Never accept access tokens from browser requests.
+  app.post('/api/deriv/reconnect', async (_req, res) => {
     try {
-      const { token } = req.body;
-      const status = await derivClient.setCustomToken(token || null);
+      const status = await derivClient.reauthorize();
+      if (!status.hasEnvToken) {
+        return res.status(400).json({
+          ...status,
+          error: 'DERIV_ACCESS_TOKEN is missing from Render Environment Variables.',
+        });
+      }
+      if (!status.authorized) {
+        return res.status(401).json(status);
+      }
       res.json(status);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
