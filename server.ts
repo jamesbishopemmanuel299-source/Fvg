@@ -35,6 +35,14 @@ async function startServer() {
     });
   });
 
+  // Safe environment configuration status. Secret values are never returned.
+  app.get('/api/system/config-status', (_req, res) => {
+    res.json({
+      ...derivClient.getRuntimeConfigStatus(),
+      ...aiTradingService.getRuntimeConfigStatus(),
+    });
+  });
+
   // Deriv Status & Account Info (NEVER reveals access token)
   app.get('/api/deriv/status', (req, res) => {
     try {
