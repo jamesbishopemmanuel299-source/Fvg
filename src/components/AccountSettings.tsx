@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Settings, Shield, ShieldAlert, Server, CheckCircle, AlertTriangle,
   RefreshCw, ExternalLink, Bot
@@ -14,6 +14,16 @@ interface AccountSettingsProps {
 export const AccountSettings: React.FC<AccountSettingsProps> = ({ status, onStatusUpdated }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [configStatus, setConfigStatus] = useState<any>(null);
+
+  const refreshConfigStatus = async () => {
+    try {
+      const response = await fetch('/api/system/config-status');
+      if (response.ok) setConfigStatus(await response.json());
+    } catch { /* Keep the settings screen usable if status is temporarily unavailable. */ }
+  };
+
+  useEffect(() => { refreshConfigStatus(); }, []);
   const account = status.account;
   const connected = Boolean(status.connected && status.authorized && account);
   const isDemo = Boolean(account?.is_virtual);
@@ -24,6 +34,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({ status, onStat
     try {
       const updated = await reconnectDeriv();
       onStatusUpdated(updated);
+      await refreshConfigStatus();
       setFeedback({
         success: true,
         message: `Connected to Deriv ${updated.mode.toUpperCase()} account ${updated.account?.loginid || ''}.`,
@@ -89,6 +100,26 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({ status, onStat
         {feedback && <div className={`p-3 rounded-lg text-xs border flex items-center gap-2 ${feedback.success ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300' : 'bg-rose-950/70 border-rose-500/50 text-rose-300'}`}>
           {feedback.success ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />} {feedback.message}
         </div>}
+      </div>
+
+      <div className="bg-[#0e1424] border border-slate-800 rounded-xl p-5 space-y-3">
+        <h3 className="font-bold text-white text-sm">Server Environment Configuration</h3>
+        <p className="text-xs text-slate-400">BONAGO reads these settings from Render's private environment. Secret values are never sent to the browser.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          {[
+            ['DERIV_APP_ID', configStatus?.derivAppIdConfigured],
+            ['DERIV_CLIENT_ID (optional)', configStatus?.derivClientIdConfigured],
+            ['DERIV_ACCESS_TOKEN', configStatus?.derivAccessTokenConfigured],
+            ['GROQ_API_KEY', configStatus?.groqApiKeyConfigured],
+          ].map(([name, ready]) => (
+            <div key={String(name)} className="flex items-center justify-between gap-2 rounded-lg bg-[#0a0f1c] border border-slate-800 p-3">
+              <code className="text-cyan-300">{name}</code>
+              <span className={ready ? 'text-emerald-400' : 'text-rose-300'}>{ready ? 'CONFIGURED' : 'MISSING'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="text-xs text-slate-400">Groq model: <span className="text-cyan-300">{configStatus?.groqModel || 'openai/gpt-oss-120b'}</span></div>
+        <button onClick={refreshConfigStatus} className="text-xs text-cyan-300 underline">Refresh configuration status</button>
       </div>
 
       <div className="bg-[#0e1424] border border-slate-800 rounded-xl p-5 space-y-3">
