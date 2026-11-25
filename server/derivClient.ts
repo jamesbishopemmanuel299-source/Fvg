@@ -20,7 +20,9 @@ export class DerivServerClient {
   private ws: WebSocket | null = null;
   private wsUrl: string = 'wss://ws.derivws.com/websockets/v3';
   private appId: string;
+  private appIdConfigError: string | null = null;
   private envToken: string;
+  private environmentAuthPromise: Promise<DerivConnectionStatus> | null = null;
   private customToken: string | null = null;
   private activeTokenSource: 'custom' | 'render-primary' | 'render-demo-fallback' | 'none' = 'none';
   private pingInterval: NodeJS.Timeout | null = null;
@@ -40,8 +42,14 @@ export class DerivServerClient {
   private activeSubscriptions = new Set<string>();
 
   constructor() {
-    this.appId = process.env.DERIV_APP_ID || '1089';
-    this.envToken = process.env.DERIV_ACCESS_TOKEN || '';
+    const configuredAppId = (process.env.DERIV_APP_ID || '').trim();
+    // Deriv's app_id query parameter must be numeric. A client identifier or
+    // OAuth client ID is not a valid replacement; fall back to public app 1089.
+    this.appId = configuredAppId && /^\\d+$/.test(configuredAppId) ? configuredAppId : '1089';
+    this.appIdConfigError = configuredAppId && !/^\\d+$/.test(configuredAppId)
+      ? 'DERIV_APP_ID must be a numeric Deriv application ID. Using public app ID 1089 until corrected.'
+      : null;
+    this.envToken = (process.env.DERIV_ACCESS_TOKEN || '').trim();
     this.activeSymbolsCache = this.getFallbackSymbols();
     this.connect();
   }
@@ -57,6 +65,8 @@ export class DerivServerClient {
       derivAccessTokenConfigured: Boolean((process.env.DERIV_ACCESS_TOKEN || '').trim()),
       derivDemoTokenConfigured: Boolean((process.env.DERIV_DEMO_ACCESS_TOKEN || '').trim()),
       derivAppId: this.appId,
+      derivAppIdValid: /^\\d+$/.test(this.appId),
+      derivAppIdWarning: this.appIdConfigError,
       // DERIV_CLIENT_ID is optional metadata; Deriv WebSocket auth uses app_id + access token.
       derivClientId: (process.env.DERIV_CLIENT_ID || '').trim() || null,
     };
@@ -79,6 +89,12 @@ export class DerivServerClient {
   }
 
   private async authorizeEnvironmentTokens(): Promise<DerivConnectionStatus> {
+    // The socket 'open' handler and a user-triggered reconnect can happen at
+    // almost the same time. Share one authorization attempt to avoid sending
+    // duplicate authorize requests on the same Deriv connection.
+    if (this.environmentAuthPromise) return this.environmentAuthPromise;
+    const attempt = (async (): Promise<DerivConnectionStatus> => {
+    this.refreshEnvironmentToken();
     const candidates = this.getEnvironmentTokenCandidates();
     if (!candidates.length) {
       this.isAuthorized = false;
@@ -97,6 +113,13 @@ export class DerivServerClient {
     }
     this.activeTokenSource = 'none';
     return this.getStatus();
+    })();
+    this.environmentAuthPromise = attempt;
+    try {
+      return await attempt;
+    } finally {
+      if (this.environmentAuthPromise === attempt) this.environmentAuthPromise = null;
+    }
   }
 
   public getEffectiveToken(): string | null {
@@ -110,6 +133,10 @@ export class DerivServerClient {
   }
 
   private connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    this.refreshEnvironmentToken();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -157,7 +184,16 @@ export class DerivServerClient {
       this.ws.on('close', (code: number) => {
         this.isConnected = false;
         this.isAuthorized = false;
+        this.currentAccount = null;
+        this.activeTokenSource = 'none';
         this.stopHeartbeat();
+        // Fail outstanding API calls immediately instead of leaving them to
+        // time out against a socket that has already closed.
+        for (const [reqId, pending] of this.pendingRequests) {
+          clearTimeout(pending.timeout);
+          pending.reject(new Error(`Deriv WebSocket closed (code ${code}). Reconnecting automatically.`));
+          this.pendingRequests.delete(reqId);
+        }
         const delay = 15000;
         this.reconnectTimeout = setTimeout(() => this.connect(), delay);
       });
