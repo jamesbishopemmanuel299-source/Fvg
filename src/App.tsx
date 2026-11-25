@@ -140,6 +140,16 @@ export default function App() {
       })
       .catch((e) => console.warn('Symbols fetch warning:', e));
 
+    // Refresh the full Deriv market catalogue periodically so newly listed
+    // instruments and market groups appear without a page reload.
+    const symbolInterval = setInterval(() => {
+      fetchActiveSymbols()
+        .then((syms) => {
+          if (syms.length > 0) setSymbols(syms);
+        })
+        .catch((e) => console.warn('Market catalogue refresh warning:', e));
+    }, 60000);
+
     // Periodic polling for positions, status, and bot state
     const posInterval = setInterval(refreshPositions, 2500);
     const histInterval = setInterval(refreshHistory, 6000);
@@ -147,6 +157,7 @@ export default function App() {
     const botInterval = setInterval(refreshBotState, 4000);
 
     return () => {
+      clearInterval(symbolInterval);
       clearInterval(posInterval);
       clearInterval(histInterval);
       clearInterval(statusInterval);
