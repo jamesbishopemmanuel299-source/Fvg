@@ -720,8 +720,23 @@ export class DerivServerClient {
   }
 
   public async buyContract(order: BuyOrderRequest): Promise<BuyOrderResponse> {
-    if (!this.isAuthorized) {
-      return { success: false, error: 'Deriv account is not authorized. Trading is disabled until a Deriv demo account is connected.' };
+    if (!this.isAuthorized || !this.currentAccount?.is_virtual) {
+      return { success: false, error: 'A Deriv Demo account is required. Live-account trading is disabled.' };
+    }
+    if (!order || typeof order.symbol !== 'string' || !/^[A-Za-z0-9_]{2,32}$/.test(order.symbol)) {
+      return { success: false, error: 'Invalid market symbol.' };
+    }
+    if (!['CALL', 'PUT'].includes(String(order.contract_type))) {
+      return { success: false, error: 'Unsupported contract direction. Choose CALL or PUT.' };
+    }
+    if (!Number.isFinite(Number(order.amount)) || Number(order.amount) < 0.35 || Number(order.amount) > 50) {
+      return { success: false, error: 'Stake must be between 0.35 and 50 account-currency units.' };
+    }
+    if (!Number.isFinite(Number(order.duration)) || Number(order.duration) < 1 || Number(order.duration) > 86400) {
+      return { success: false, error: 'Duration must be between 1 and 86400 units.' };
+    }
+    if (!['t', 's', 'm', 'h', 'd'].includes(String(order.duration_unit))) {
+      return { success: false, error: 'Unsupported duration unit.' };
     }
 
     try {
