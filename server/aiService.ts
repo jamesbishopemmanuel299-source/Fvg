@@ -11,7 +11,7 @@ import type { AiChatMessage } from '../src/types/deriv';
 
 export class AiTradingService {
   private geminiAi: GoogleGenAI | null = null;
-  private groqApiKey: string | null = null;
+
 
   constructor() {
     const geminiKey = process.env.GEMINI_API_KEY;
@@ -25,8 +25,6 @@ export class AiTradingService {
         },
       });
     }
-
-    this.groqApiKey = process.env.GROQ_API_KEY || null;
   }
 
   public async processChat(
@@ -118,7 +116,7 @@ RULES:
     let aiResponseText = '';
     let modelNameUsed = '';
 
-    if (this.groqApiKey) {
+    if (this.getGroqApiKey()) {
       try {
         const groqResult = await this.callGroq(systemPrompt, history, message);
         aiResponseText = groqResult.text;
@@ -188,8 +186,24 @@ RULES:
     };
   }
 
+  public getRuntimeConfigStatus() {
+    return {
+      groqApiKeyConfigured: Boolean((process.env.GROQ_API_KEY || '').trim()),
+      groqModel: (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim(),
+      geminiApiKeyConfigured: Boolean((process.env.GEMINI_API_KEY || '').trim()),
+    };
+  }
+
+  private getGroqApiKey(): string | null {
+    const key = (process.env.GROQ_API_KEY || '').trim();
+    return key || null;
+  }
+
   private async callGroq(systemPrompt: string, history: Array<{ role: string; content: string }>, userMessage: string): Promise<{ text: string; model: string }> {
-    const modelsToTry = ['gpt-oss-120b', 'llama-3.3-70b-versatile', 'llama3-70b-8192'];
+    const apiKey = this.getGroqApiKey();
+    if (!apiKey) throw new Error('GROQ_API_KEY is missing from the Render environment.');
+    const configuredModel = (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim();
+    const modelsToTry = [...new Set([configuredModel, 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'])];
     let lastError: Error | null = null;
 
     for (const model of modelsToTry) {
@@ -198,7 +212,7 @@ RULES:
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.groqApiKey}`,
+            Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
             model: model,
