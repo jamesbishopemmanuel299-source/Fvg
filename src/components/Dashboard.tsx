@@ -112,12 +112,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </span>
           </div>
           <div className="text-xl font-mono font-bold text-white mt-1">
-            {account
+            {status.authorized && account
               ? `${account.currency} ${account.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-              : '—'}
+              : 'Not connected'}
           </div>
           <span className="text-[11px] text-slate-500 font-mono mt-0.5 block truncate">
-            {account?.loginid || 'Token not connected'}
+            {account?.loginid || 'Waiting for Deriv authorization'}
           </span>
         </div>
 
