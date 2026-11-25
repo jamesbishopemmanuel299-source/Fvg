@@ -39,23 +39,39 @@ export class BotEngine {
   }
 
   public getState(): BotState {
-    return { ...this.state };
+    return { ...this.state, config: { ...this.state.config, selectedMarkets: [...this.state.config.selectedMarkets] }, logs: [...this.state.logs] };
   }
 
   public updateConfig(newConfig: Partial<AutoBotConfig>): BotState {
-    this.state.config = {
-      ...this.state.config,
-      ...newConfig,
-      // Anti-martingale protection: stake cannot be less than 0.35 or exceed safety boundary
-      maxStake: Math.max(0.35, Math.min(newConfig.maxStake ?? this.state.config.maxStake, 50)),
+    const current = this.state.config;
+    const numeric = (value: unknown, fallback: number, min: number, max: number): number => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
     };
-    this.addLog('info', 'Bot configuration updated.', undefined, { config: this.state.config });
+    const selectedMarkets = Array.isArray(newConfig.selectedMarkets)
+      ? [...new Set(newConfig.selectedMarkets.filter((symbol) => typeof symbol === 'string' && /^[A-Za-z0-9_]{2,32}$/.test(symbol)))].slice(0, 30)
+      : current.selectedMarkets;
+    const allowedStrategies = ['rsi_mean_reversion', 'momentum_breakout', 'ema_trend', 'adaptive_ai'];
+    this.state.config = {
+      ...current,
+      ...newConfig,
+      selectedMarkets: selectedMarkets.length ? selectedMarkets : current.selectedMarkets,
+      maxStake: numeric(newConfig.maxStake, current.maxStake, 0.35, 50),
+      maxDailyLoss: numeric(newConfig.maxDailyLoss, current.maxDailyLoss, 1, 500),
+      takeProfit: numeric(newConfig.takeProfit, current.takeProfit, 1, 1000),
+      maxOpenTrades: Math.round(numeric(newConfig.maxOpenTrades, current.maxOpenTrades, 1, 5)),
+      minConfidence: numeric(newConfig.minConfidence, current.minConfidence, 50, 95),
+      tradeIntervalSec: Math.round(numeric(newConfig.tradeIntervalSec, current.tradeIntervalSec, 10, 3600)),
+      strategy: allowedStrategies.includes(String(newConfig.strategy)) ? newConfig.strategy! : current.strategy,
+    };
+    this.addLog('info', 'Bot configuration updated and risk limits validated.', undefined, { config: this.state.config });
     return this.getState();
   }
 
   public start(userConfig?: Partial<AutoBotConfig>): BotState {
     const derivStatus = derivClient.getStatus();
-    if (!derivStatus.authorized) {
+    if (!derivStatus.authorized || !derivStatus.account?.is_virtual || derivStatus.mode !== 'demo') {
+      this.stop('Safety stop: A Deriv Demo account is required. Live trading is disabled.');
       this.state.stoppedReason = 'Cannot start bot: Deriv account is not authorized.';
       this.addLog('risk_warning', this.state.stoppedReason);
       return this.getState();
@@ -152,9 +168,15 @@ export class BotEngine {
         return;
       }
 
-      // 6. Signal confirmed: Execute order
-      // Anti-martingale protection: Always use fixed maxStake, NEVER increase stake after loss!
-      const stake = this.state.config.maxStake;
+      // Re-check account mode immediately before execution.
+      const account = derivClient.getStatus().account;
+      if (!account?.is_virtual) {
+        this.stop('Safety stop: Demo account is no longer authorized.');
+        return;
+      }
+
+      // Fixed stake; never increase after a loss.
+      const stake = Math.min(this.state.config.maxStake, 50);
 
       this.addLog('trade', `Signal triggered on ${targetSymbol}: ${signal.direction} (${signal.reason}) with ${signal.confidence}% confidence. Executing stake $${stake.toFixed(2)}...`, targetSymbol);
 
