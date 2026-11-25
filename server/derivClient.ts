@@ -343,22 +343,33 @@ export class DerivServerClient {
       return this.activeSymbolsCache;
     }
     try {
+      // Request the complete active-symbol catalogue. Do not set product_type:
+      // that parameter filters the response and can hide markets/contracts.
       const res = await this.send({
-        active_symbols: 'brief',
-        product_type: 'basic',
-      }, 4000);
+        active_symbols: 'full',
+      }, 12000);
       if (res.active_symbols && Array.isArray(res.active_symbols)) {
-        this.activeSymbolsCache = res.active_symbols.map((sym: any) => ({
-          symbol: sym.symbol,
-          display_name: sym.display_name,
-          market: sym.market,
-          market_display_name: sym.market_display_name,
-          submarket: sym.submarket,
-          submarket_display_name: sym.submarket_display_name,
-          exchange_is_open: Boolean(sym.exchange_is_open),
-          pip: sym.pip || 0.01,
-          is_trading_suspended: Boolean(sym.is_trading_suspended),
-        }));
+        this.activeSymbolsCache = res.active_symbols
+          .map((sym: any) => {
+            const symbol = sym.symbol || sym.underlying_symbol;
+            const displayName = sym.display_name || sym.underlying_symbol_name || symbol;
+            const market = sym.market || sym.underlying_symbol_type || 'other';
+            const submarket = sym.submarket || sym.subgroup || 'other';
+            return {
+              symbol,
+              display_name: displayName,
+              market,
+              market_display_name: sym.market_display_name || market.replace(/_/g, ' '),
+              submarket,
+              submarket_display_name: sym.submarket_display_name || submarket.replace(/_/g, ' '),
+              exchange_is_open: Boolean(sym.exchange_is_open),
+              pip: Number(sym.pip ?? sym.pip_size) || 0.01,
+              is_trading_suspended: Boolean(sym.is_trading_suspended),
+            } as ActiveSymbol;
+          })
+          .filter((sym: ActiveSymbol) => Boolean(sym.symbol))
+          .sort((a: ActiveSymbol, b: ActiveSymbol) => a.display_name.localeCompare(b.display_name));
+        console.log(`[DerivClient] Loaded ${this.activeSymbolsCache.length} active symbols across all available markets.`);
       }
       return this.activeSymbolsCache;
     } catch {
