@@ -126,6 +126,10 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   };
 
   const executeOrder = async (type: ContractType) => {
+    if (!Number.isFinite(stake) || stake < 0.35 || stake > 50) {
+      setExecutionResult({ success: false, error: `Enter a stake between ${currency} 0.35 and 50.` });
+      return;
+    }
     setIsExecuting(true);
     setExecutionResult(null);
     setPendingConfirm(null);
@@ -152,7 +156,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     }
   };
 
-  const stakePresets = [0.5, 1.0, 5.0, 10.0, 25.0, 50.0];
+  const stakePresets = [0.35, 0.5, 1.0, 5.0, 10.0, 50.0];
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-5rem)] p-4 overflow-y-auto">
@@ -207,17 +211,29 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
               <label className="text-xs font-medium text-slate-400">Stake Amount ({currency})</label>
               <span className="text-[11px] text-slate-500">Min $0.35</span>
             </div>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="number"
-                min="0.35"
-                max="5000"
-                step="0.5"
-                value={stake}
-                onChange={(e) => setStake(Math.max(0.35, Number(e.target.value)))}
-                className="w-full bg-[#121829] border border-slate-700/80 rounded-lg pl-9 pr-3 py-2 text-white font-mono font-bold text-base focus:outline-none focus:border-cyan-500"
-              />
+            <div className="flex items-center gap-2">
+              <button type="button" aria-label="Decrease stake by 0.35"
+                onClick={() => setStake((value) => Math.max(0.35, Math.round((value - 0.35) * 100) / 100))}
+                disabled={stake <= 0.35}
+                className="h-11 w-11 shrink-0 rounded-lg border border-slate-700 bg-slate-900 text-white text-xl disabled:opacity-40">−</button>
+              <div className="relative flex-1">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type="number" inputMode="decimal" min="0.35" max="50" step="0.01"
+                  value={stake}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    if (e.target.value !== '' && Number.isFinite(parsed) && parsed >= 0.35 && parsed <= 50) setStake(parsed);
+                  }}
+                  aria-label="Custom trade stake amount"
+                  className="w-full bg-[#121829] border border-slate-700/80 rounded-lg pl-9 pr-3 py-3 text-white font-mono font-bold text-base focus:outline-none focus:border-cyan-500" />
+              </div>
+              <button type="button" aria-label="Increase stake by 0.35"
+                onClick={() => setStake((value) => Math.min(50, Math.round((value + 0.35) * 100) / 100))}
+                disabled={stake >= 50}
+                className="h-11 w-11 shrink-0 rounded-lg border border-slate-700 bg-slate-900 text-white text-xl disabled:opacity-40">+</button>
+            </div>
+            <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+              <span>Enter your own amount</span><span>Range: {currency} 0.35–50</span>
             </div>
 
             {/* Quick Stake Preset Buttons */}
@@ -329,7 +345,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             {/* CALL (Rise) Button */}
             <button
               onClick={() => handleOrderClick('CALL')}
-              disabled={isExecuting || !isAuthorized}
+              disabled={isExecuting || !isAuthorized || !Number.isFinite(stake) || stake < 0.35 || stake > 50}
               className="py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-950/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95"
             >
               <div className="flex items-center gap-1.5">
@@ -344,7 +360,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             {/* PUT (Fall) Button */}
             <button
               onClick={() => handleOrderClick('PUT')}
-              disabled={isExecuting || !isAuthorized}
+              disabled={isExecuting || !isAuthorized || !Number.isFinite(stake) || stake < 0.35 || stake > 50}
               className="py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-extrabold text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-rose-950/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95"
             >
               <div className="flex items-center gap-1.5">
