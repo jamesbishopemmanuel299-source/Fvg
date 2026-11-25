@@ -287,6 +287,9 @@ export class DerivServerClient {
       console.log('[DerivClient] Authorizing token...');
       const res = await this.send({ authorize: token });
       const auth = res.authorize;
+      if (!auth?.is_virtual) {
+        throw new Error('Live Deriv accounts are disabled in this build. Connect a DEMO / virtual account token.');
+      }
 
       this.isAuthorized = true;
       this.lastError = null;
