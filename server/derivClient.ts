@@ -347,6 +347,22 @@ export class DerivServerClient {
     }
   }
 
+  public async refreshAccountBalance(): Promise<DerivConnectionStatus> {
+    if (!this.isAuthorized || !this.currentAccount) {
+      return this.getStatus();
+    }
+    try {
+      const response = await this.send({ balance: 1 }, 8000);
+      if (response?.balance) {
+        this.currentAccount.balance = Number(response.balance.balance);
+        this.currentAccount.currency = response.balance.currency || this.currentAccount.currency;
+      }
+    } catch (err: any) {
+      this.lastError = err.message || 'Could not refresh Deriv account balance.';
+    }
+    return this.getStatus();
+  }
+
   public getStatus(): DerivConnectionStatus {
     return {
       connected: this.isConnected,
