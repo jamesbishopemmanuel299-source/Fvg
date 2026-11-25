@@ -44,9 +44,9 @@ async function startServer() {
   });
 
   // Deriv Status & Account Info (NEVER reveals access token)
-  app.get('/api/deriv/status', (req, res) => {
+  app.get('/api/deriv/status', async (_req, res) => {
     try {
-      const status = derivClient.getStatus();
+      const status = await derivClient.refreshAccountBalance();
       res.json(status);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
