@@ -26,3 +26,5 @@ services:
         value: "openai/gpt-oss-120b"
       - key: DERIV_ACCESS_TOKEN
         sync: false
+      - key: DERIV_DEMO_ACCESS_TOKEN
+        sync: false
