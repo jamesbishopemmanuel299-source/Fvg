@@ -291,6 +291,67 @@ export class DerivServerClient {
     }
   }
 
+  public async reconnectFromEnvironment(): Promise<DerivConnectionStatus> {
+    // Always use the secret configured on the Render service. Never accept a
+    // token from the browser or persist one in client-side storage.
+    this.customToken = null;
+    const token = this.refreshEnvironmentToken();
+    if (!token) {
+      this.isAuthorized = false;
+      this.currentAccount = null;
+      this.lastError = 'DERIV_ACCESS_TOKEN is missing from the Render service Environment. Add it, save, and redeploy.';
+      return this.getStatus();
+    }
+
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
+      this.ws?.removeAllListeners();
+      this.ws?.terminate();
+      this.ws = null;
+      this.isConnected = false;
+      this.isAuthorized = false;
+      this.connect();
+    }
+
+    // Wait for the newly opened socket instead of returning a misleading
+    // "not connected" result when the user presses Reconnect.
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      const socket = this.ws;
+      if (!socket) {
+        this.lastError = 'Could not initialize the Deriv WebSocket connection.';
+        return this.getStatus();
+      }
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('Timed out waiting for Deriv WebSocket connection.'));
+          }, 15000);
+          const onOpen = () => { cleanup(); resolve(); };
+          const onError = (error: Error) => { cleanup(); reject(error); };
+          const onClose = () => { cleanup(); reject(new Error('Deriv WebSocket closed before reconnect completed.')); };
+          const cleanup = () => {
+            clearTimeout(timeout);
+            socket.off('open', onOpen);
+            socket.off('error', onError);
+            socket.off('close', onClose);
+          };
+          socket.once('open', onOpen);
+          socket.once('error', onError);
+          socket.once('close', onClose);
+        });
+      } catch (error: any) {
+        this.lastError = error.message || 'Deriv reconnect failed.';
+        return this.getStatus();
+      }
+    }
+
+    return this.authorize(token);
+  }
+
   public async reauthorize(): Promise<DerivConnectionStatus> {
     const token = this.getEffectiveToken();
     if (!token) {
