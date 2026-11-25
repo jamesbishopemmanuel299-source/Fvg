@@ -18,7 +18,7 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: DERIV_CLIENT_ID
+      - key: DERIV_APP_ID
         value: "1089"
       - key: DERIV_ACCESS_TOKEN
         sync: false
