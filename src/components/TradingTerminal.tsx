@@ -52,7 +52,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   const [requireConfirmation, setRequireConfirmation] = useState<boolean>(true);
   const [pendingConfirm, setPendingConfirm] = useState<{ type: ContractType } | null>(null);
   const [entryPrice, setEntryPrice] = useState<string>('');
-  const [pendingEntry, setPendingEntry] = useState<{ type: ContractType; target: number } | null>(null);
+  const [pendingEntry, setPendingEntry] = useState<{ type: ContractType; target: number; symbol: string } | null>(null);
   const livePrice = ticks.length ? ticks[ticks.length - 1].quote : null;
 
   // Proposal state
@@ -137,7 +137,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         if (requireConfirmation) setPendingConfirm({ type });
         else executeOrder(type);
       } else {
-        setPendingEntry({ type, target });
+        setPendingEntry({ type, target, symbol: currentSymbol });
         setExecutionResult(null);
       }
       return;
@@ -181,7 +181,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   };
 
   useEffect(() => {
-    if (!pendingEntry || livePrice === null || isExecuting) return;
+    if (!pendingEntry || pendingEntry.symbol !== currentSymbol || livePrice === null || isExecuting) return;
     const reached = pendingEntry.type === 'CALL'
       ? livePrice >= pendingEntry.target
       : livePrice <= pendingEntry.target;
@@ -316,7 +316,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             {pendingEntry && (
               <div className="flex items-center justify-between gap-2 rounded-md border border-amber-700/50 bg-amber-950/30 p-2">
                 <div className="text-[11px] text-amber-300">
-                  <strong>Waiting for {pendingEntry.type}</strong>
+                  <strong>Waiting for {pendingEntry.type} · {pendingEntry.symbol}</strong>
                   <div>Target {pendingEntry.target} · Live {livePrice ?? 'Waiting for tick'}</div>
                 </div>
                 <button type="button" onClick={() => setPendingEntry(null)} className="shrink-0 rounded bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white">Cancel</button>
