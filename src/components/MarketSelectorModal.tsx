@@ -32,10 +32,10 @@ export const MarketSelectorModal: React.FC<MarketSelectorModalProps> = ({
       { id: 'commodities', label: 'Commodities' },
     ];
     const knownMarkets = new Set(['synthetic_index', 'forex', 'cryptocurrency', 'commodities']);
-    const dynamic = Array.from(new Map(
+    const dynamic = Array.from(new Map<string, { id: string; label: string }>(
       symbols
         .filter((item) => item.market && !knownMarkets.has(item.market))
-        .map((item) => [item.market, {
+        .map((item): [string, { id: string; label: string }] => [item.market, {
           id: `market:${item.market}`,
           label: item.market_display_name || item.market.replace(/_/g, ' '),
         }])
