@@ -49,8 +49,16 @@ export class DerivServerClient {
     return this.appId;
   }
 
+  private refreshEnvironmentToken(): string {
+    // Read the current process environment each time so reconnect uses the
+    // latest value configured in Render after a restart/redeploy.
+    this.envToken = (process.env.DERIV_ACCESS_TOKEN || '').trim();
+    return this.envToken;
+  }
+
   public getEffectiveToken(): string | null {
-    return this.customToken || (this.envToken ? this.envToken : null);
+    const envToken = this.refreshEnvironmentToken();
+    return this.customToken || (envToken || null);
   }
 
   public setCustomToken(token: string | null): Promise<DerivConnectionStatus> {
@@ -277,8 +285,15 @@ export class DerivServerClient {
     if (!token) {
       this.isAuthorized = false;
       this.currentAccount = null;
+      this.lastError = 'DERIV_ACCESS_TOKEN is not available to the running server. Add it to the Render service Environment, save, and redeploy.';
       return this.getStatus();
     }
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.lastError = 'Deriv WebSocket is not connected yet. Wait for the server connection to recover, then press Reconnect again.';
+      return this.getStatus();
+    }
+
     return this.authorize(token);
   }
 
@@ -327,7 +342,7 @@ export class DerivServerClient {
       authorized: this.isAuthorized,
       account: this.isAuthorized ? this.currentAccount : null,
       clientId: this.appId,
-      hasEnvToken: Boolean(this.envToken),
+      hasEnvToken: Boolean(this.refreshEnvironmentToken()),
       activeTokenSource: this.customToken ? 'custom' : this.envToken ? 'env' : 'none',
       error: this.lastError,
       pingMs: this.lastPingMs || undefined,
