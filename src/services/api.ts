@@ -22,17 +22,11 @@ export async function fetchDerivStatus(): Promise<DerivConnectionStatus> {
   return res.json();
 }
 
-export async function configureCustomToken(token: string | null): Promise<DerivConnectionStatus> {
-  const res = await fetch('/api/deriv/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to configure token');
-  }
-  return res.json();
+export async function reconnectDeriv(): Promise<DerivConnectionStatus> {
+  const res = await fetch('/api/deriv/reconnect', { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to connect to Deriv');
+  return data;
 }
 
 export async function fetchActiveSymbols(): Promise<ActiveSymbol[]> {
