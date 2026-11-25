@@ -22,6 +22,7 @@ export class DerivServerClient {
   private appId: string;
   private envToken: string;
   private customToken: string | null = null;
+  private activeTokenSource: 'custom' | 'render-primary' | 'render-demo-fallback' | 'none' = 'none';
   private pingInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reqIdCounter = 1;
@@ -54,6 +55,7 @@ export class DerivServerClient {
       derivAppIdConfigured: Boolean((process.env.DERIV_APP_ID || '').trim()),
       derivClientIdConfigured: Boolean((process.env.DERIV_CLIENT_ID || '').trim()),
       derivAccessTokenConfigured: Boolean((process.env.DERIV_ACCESS_TOKEN || '').trim()),
+      derivDemoTokenConfigured: Boolean((process.env.DERIV_DEMO_ACCESS_TOKEN || '').trim()),
       derivAppId: this.appId,
       // DERIV_CLIENT_ID is optional metadata; Deriv WebSocket auth uses app_id + access token.
       derivClientId: (process.env.DERIV_CLIENT_ID || '').trim() || null,
@@ -67,9 +69,39 @@ export class DerivServerClient {
     return this.envToken;
   }
 
+  private getEnvironmentTokenCandidates(): Array<{ token: string; source: 'render-primary' | 'render-demo-fallback' }> {
+    const primary = (process.env.DERIV_ACCESS_TOKEN || '').trim();
+    const demo = (process.env.DERIV_DEMO_ACCESS_TOKEN || '').trim();
+    const candidates: Array<{ token: string; source: 'render-primary' | 'render-demo-fallback' }> = [];
+    if (primary) candidates.push({ token: primary, source: 'render-primary' });
+    if (demo && demo !== primary) candidates.push({ token: demo, source: 'render-demo-fallback' });
+    return candidates;
+  }
+
+  private async authorizeEnvironmentTokens(): Promise<DerivConnectionStatus> {
+    const candidates = this.getEnvironmentTokenCandidates();
+    if (!candidates.length) {
+      this.isAuthorized = false;
+      this.currentAccount = null;
+      this.activeTokenSource = 'none';
+      this.lastError = 'Add DERIV_ACCESS_TOKEN or DERIV_DEMO_ACCESS_TOKEN to Render Environment.';
+      return this.getStatus();
+    }
+    for (const candidate of candidates) {
+      const status = await this.authorize(candidate.token);
+      if (status.authorized && status.account?.is_virtual) {
+        this.activeTokenSource = candidate.source;
+        return this.getStatus();
+      }
+      console.warn('[DerivClient] Token rejected or not Demo; trying next configured token:', candidate.source);
+    }
+    this.activeTokenSource = 'none';
+    return this.getStatus();
+  }
+
   public getEffectiveToken(): string | null {
     const envToken = this.refreshEnvironmentToken();
-    return this.customToken || (envToken || null);
+    return this.customToken || envToken || (this.getEnvironmentTokenCandidates()[1]?.token ?? null);
   }
 
   public setCustomToken(token: string | null): Promise<DerivConnectionStatus> {
@@ -100,11 +132,10 @@ export class DerivServerClient {
         this.fetchActiveSymbols().catch(() => {});
         
         // Auto-authorize if token is available
-        const token = this.getEffectiveToken();
-        if (token) {
-          this.authorize(token).catch((err) => {
-            console.error('[DerivClient] Auto-auth failed:', err.message);
-          });
+        if (this.customToken) {
+          this.authorize(this.customToken).catch((err) => console.error('[DerivClient] Auto-auth failed:', err.message));
+        } else {
+          this.authorizeEnvironmentTokens().catch((err) => console.error('[DerivClient] Environment token auth failed:', err.message));
         }
       });
 
@@ -295,11 +326,12 @@ export class DerivServerClient {
     // Always use the secret configured on the Render service. Never accept a
     // token from the browser or persist one in client-side storage.
     this.customToken = null;
-    const token = this.refreshEnvironmentToken();
-    if (!token) {
+    const candidates = this.getEnvironmentTokenCandidates();
+    if (!candidates.length) {
       this.isAuthorized = false;
       this.currentAccount = null;
-      this.lastError = 'DERIV_ACCESS_TOKEN is missing from the Render service Environment. Add it, save, and redeploy.';
+      this.activeTokenSource = 'none';
+      this.lastError = 'Add DERIV_ACCESS_TOKEN or DERIV_DEMO_ACCESS_TOKEN to Render Environment, save, and redeploy.';
       return this.getStatus();
     }
 
@@ -349,7 +381,7 @@ export class DerivServerClient {
       }
     }
 
-    return this.authorize(token);
+    return this.authorizeEnvironmentTokens();
   }
 
   public async reauthorize(): Promise<DerivConnectionStatus> {
@@ -379,6 +411,7 @@ export class DerivServerClient {
       }
 
       this.isAuthorized = true;
+      if (this.customToken) this.activeTokenSource = 'custom';
       this.lastError = null;
       this.currentAccount = {
         loginid: auth.loginid,
@@ -431,7 +464,7 @@ export class DerivServerClient {
       account: this.isAuthorized ? this.currentAccount : null,
       clientId: this.appId,
       hasEnvToken: Boolean(this.refreshEnvironmentToken()),
-      activeTokenSource: this.customToken ? 'custom' : this.envToken ? 'env' : 'none',
+      activeTokenSource: this.customToken ? 'custom' : this.activeTokenSource !== 'none' ? this.activeTokenSource : this.envToken ? 'render-primary' : (process.env.DERIV_DEMO_ACCESS_TOKEN ? 'render-demo-fallback' : 'none'),
       error: this.lastError,
       pingMs: this.lastPingMs || undefined,
       mode: this.currentAccount && !this.currentAccount.is_virtual ? 'real' : 'demo',
