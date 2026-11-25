@@ -105,11 +105,11 @@ export class DerivServerClient {
     }
     for (const candidate of candidates) {
       const status = await this.authorize(candidate.token);
-      if (status.authorized && status.account?.is_virtual) {
+      if (status.authorized && status.account) {
         this.activeTokenSource = candidate.source;
         return this.getStatus();
       }
-      console.warn('[DerivClient] Token rejected or not Demo; trying next configured token:', candidate.source);
+      console.warn('[DerivClient] Configured token could not authorize; trying next configured token:', candidate.source);
     }
     this.activeTokenSource = 'none';
     return this.getStatus();
